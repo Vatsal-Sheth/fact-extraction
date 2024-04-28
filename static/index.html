@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Extract Information from Call Logs</title>
+  <style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 20px;
+    background-color: #e6f2ff;
+    color: #333;
+  }
+
+  h1 {
+    text-align: center;
+    color: #333;
+  }
+
+  form {
+    max-width: 600px;
+    margin: 0 auto;
+    background-color: #fff;
+    padding: 20px;
+    border-radius: 5px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+  }
+
+  input[type="text"],
+  button[type="submit"] {
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 10px;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    box-sizing: border-box;
+  }
+
+  button[type="submit"] {
+    background-color: #4CAF50;
+    color: #fff;
+    cursor: pointer;
+  }
+
+  button[type="submit"]:hover {
+    background-color: #45a049;
+  }
+
+  #document-urls-container {
+    margin-bottom: 10px;
+  }
+
+  .document-url {
+    display: flex;
+    align-items: center;
+    margin-bottom: 5px;
+  }
+
+  .document-url input {
+    flex: 1;
+    margin-right: 5px;
+  }
+
+  #outputScreen button {
+    font-size: 1.2rem;
+    padding: 10px 20px;
+  }
+
+  #processing {
+    text-align: center;
+    font-weight: bold;
+    display: none;
+  }
+
+  #error-container {
+    color: red;
+    margin-top: 10px;
+  }
+  </style>
+</head>
+<body>
+  <div id="inputScreen">
+    <h1>Submit Question and Documents</h1>
+    <form id="submitForm">
+      <label for="question">Question:</label>
+      <input type="text" id="question" name="question" required>
+
+      <label for="documents">Document URL:</label>
+      <div id="document-urls-container">
+        <div class="document-url">
+        </div>
+      </div>
+
+      <button type="submit">Submit</button>
+      <div id="processing" style="display: none;">Processing...</div>
+      <div id="error-container"></div>
+    </form>
+  </div>
+
+  <div id="outputScreen" style="display:none;">
+    <h1>Processed Facts</h1>
+    <div id="facts-container"></div>
+    <button onclick="goBack()">Submit Another Query</button>
+  </div>
+
+  <script>
+    document.getElementById('submitForm').onsubmit = function(event) {
+      event.preventDefault();
+      const question = document.getElementById('question').value;
+      const documents = Array.from(document.querySelectorAll('.document-url input')).map(input => input.value);
+
+      showProcessing();
+
+      fetch('https://fact-extraction-235731df2c75.herokuapp.com/submit_question_and_documents', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ question, documents })
+      }).then(response => {
+        if (!response.ok) {
+          throw new Error('Network response was not ok');
+        }
+        return response.json();
+      })
+      .then(data => {
+        if (data.status === "Processing started") {
+          checkStatus();
+        } else if (data.status === "error") {
+          showError(data.message);
+        }
+      }).catch(error => {
+        showError(error.toString());
+      });
+    };
+
+    function checkStatus() {
+      fetch('https://fact-extraction-235731df2c75.herokuapp.com/get_question_and_facts')
+        .then(response => {
+          if (!response.ok) {
+            throw new Error('Network response was not ok');
+          }
+          return response.json();
+        })
+        .then(data => {
+          if (data.status === "done") {
+            displayFacts(data.facts);
+            hideProcessing();
+          } else if (data.status === "error") {
+            showError(data.message);
+          } else {
+            setTimeout(checkStatus, 2000); // Check every 2 seconds
+          }
+        }).catch(error => {
+          showError(error.toString());
+        });
+    }
+
+    function displayFacts(facts) {
+      const factsContainer = document.getElementById('facts-container');
+      factsContainer.innerHTML = ''; // Clear previous facts
+
+      facts.forEach(fact => {
+        const p = document.createElement('p');
+        p.textContent = fact;
+        factsContainer.appendChild(p);
+      });
+
+      document.getElementById('inputScreen').style.display = 'none';
+      document.getElementById('outputScreen').style.display = 'block';
+    }
+
+    function goBack() {
+      document.getElementById('inputScreen').style.display = 'block';
+      document.getElementById('outputScreen').style.display = 'none';
+      document.getElementById('submitForm').reset();
+      addDocumentUrl();
+      hideProcessing();
+    }
+
+    function addDocumentUrl() {
+      const container = document.getElementById('document-urls-container');
+      const newUrl = document.createElement('div');
+      newUrl.classList.add('document-url');
+      newUrl.innerHTML = `
+        <input type="text" name="documents" placeholder="Enter document URL" required>
+        <button type="button" onclick="addDocumentUrl()">+</button>
+        <button type="button" onclick="removeDocumentUrl(this)">-</button>
+      `;
+      container.appendChild(newUrl);
+    }
+
+    function removeDocumentUrl(button) {
+      const container = document.getElementById('document-urls-container');
+      const urlContainer = button.parentElement;
+      container.removeChild(urlContainer);
+    }
+
+    function showProcessing() {
+      document.getElementById('processing').style.display = 'block';
+    }
+
+    function hideProcessing() {
+      document.getElementById('processing').style.display = 'none';
+    }
+
+    function showError(message) {
+      const errorContainer = document.getElementById('error-container');
+      errorContainer.textContent = message;
+    }
+
+    addDocumentUrl();
+  </script>
+</body>
+</html>

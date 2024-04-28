@@ -1,0 +1,5 @@
+flask>=2.0
+Flask-Cors==4.0.0
+requests==2.24.0
+openai==1.23.6
+gunicorn==22.0.0
